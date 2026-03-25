@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply min-h-screen;
+  }
+
+  body {
+    @apply m-0 bg-appBg font-sans text-appText antialiased dark:bg-appBgDark dark:text-slate-100;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    @apply font-sans;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-[24px] border border-appStroke bg-white shadow-soft dark:border-slate-700 dark:bg-slate-800;
+  }
+
+  .icon-btn {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent bg-[#ECF1F4] text-slate-600 transition hover:bg-[#E1E8ED] dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+  }
+
+  .auth-top-icon {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-200/70 dark:text-slate-100 dark:hover:bg-slate-800;
+  }
+
+  .auth-input {
+    @apply h-11 w-full rounded-xl border border-appStroke bg-[#F8FAFB] px-3 text-sm text-slate-700 outline-none placeholder:text-appMuted focus:border-brand dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500;
+  }
+
+  .auth-field-label {
+    @apply mb-1 block text-[13px] font-semibold text-slate-700 dark:text-slate-100;
+  }
+
+  .metric-card {
+    @apply card min-h-[320px] rounded-[20px] p-3.5 sm:p-4;
+  }
+}
