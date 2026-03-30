@@ -46,7 +46,7 @@ SwasthSetu addresses these challenges by providing:
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         PRESENTATION LAYER                          │
-│                        (Flutter Mobile App)                         │
+│                  (React + Tailwind Web Application)                 │
 │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐           │
 │  │ Dashboard │ │ Analytics │ │ AI Summary│ │Gamification│           │
 │  │  Screen   │ │  Screen   │ │  Screen   │ │  Screen   │           │
@@ -109,8 +109,8 @@ SwasthSetu addresses these challenges by providing:
 ### Frontend
 | Technology | Purpose |
 |------------|---------|
-| **Flutter** | Cross-platform mobile framework |
-| **Dart** | Programming language |
+| **React.js** | Cross-platform web framework |
+| **javascript** | Programming language |
 | **SharedPreferences** | Local storage & caching |
 | **HTTP Package** | REST API communication |
 | **Intl Package** | Internationalization & date formatting |
@@ -363,7 +363,7 @@ Health Score = (Steps/StepsGoal × 40) + (Sleep/SleepGoal × 30) + (Distance/Dis
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   Flutter    │     │   Express    │     │   MongoDB    │
+│   React.js   │     │   Express    │     │   MongoDB    │
 │    Client    │     │   Server     │     │   Database   │
 └──────┬───────┘     └──────┬───────┘     └──────┬───────┘
        │                    │                    │
@@ -530,7 +530,7 @@ const insights = JSON.parse(response.text());
 
 ### Prerequisites
 - Node.js v18+
-- Flutter SDK 3.0+
+- React environment (Vite / Create React App)
 - MongoDB Atlas account
 - Strava API credentials
 - Google Gemini API key
@@ -546,10 +546,9 @@ npm start
 
 ### Frontend Setup
 ```bash
-cd client
-flutter pub get
-# Update API base URL in api_service.dart
-flutter run
+cd client-react
+npm install 
+npm run dev
 ```
 
 ### Environment Variables
@@ -565,8 +564,6 @@ GEMINI_API_KEY=your-api-key
 ---
 
 ## 👥 Team - DataPirates
-
-Built with ❤️ for HackCrypt Hackathon
 
 ---
 
