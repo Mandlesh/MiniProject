@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   BedDouble,
   Clock3,
+  Flame,
   Footprints,
   HeartPulse,
   Lightbulb,
@@ -25,6 +26,7 @@ const DASHBOARD_COPY = {
     user: 'User',
     openProfile: 'Open profile',
     healthScore: 'Health Score',
+    overallWellness: 'Overall Wellness',
     lastUpdated: 'Last updated today at',
     thisWeek: 'This Week',
     dailyHealthTip: 'Daily Health Tip',
@@ -45,6 +47,7 @@ const DASHBOARD_COPY = {
     sleep: 'Sleep',
     distance: 'Distance',
     bpm: 'BPM',
+    calories: 'Calories',
     low: 'Low',
     high: 'High',
     normal: 'Normal',
@@ -73,6 +76,7 @@ const DASHBOARD_COPY = {
     user: 'उपयोगकर्ता',
     openProfile: 'प्रोफ़ाइल खोलें',
     healthScore: 'स्वास्थ्य स्कोर',
+    overallWellness: 'समग्र कल्याण',
     lastUpdated: 'आज अंतिम अपडेट:',
     thisWeek: 'इस सप्ताह',
     dailyHealthTip: 'दैनिक स्वास्थ्य सुझाव',
@@ -93,6 +97,7 @@ const DASHBOARD_COPY = {
     sleep: 'नींद',
     distance: 'दूरी',
     bpm: 'BPM',
+    calories: 'कैलोरी',
     low: 'कम',
     high: 'उच्च',
     normal: 'सामान्य',
@@ -121,6 +126,7 @@ const DASHBOARD_COPY = {
     user: 'वापरकर्ता',
     openProfile: 'प्रोफाइल उघडा',
     healthScore: 'आरोग्य स्कोअर',
+    overallWellness: 'एकूण आरोग्य',
     lastUpdated: 'आज शेवटचे अपडेट:',
     thisWeek: 'हा आठवडा',
     dailyHealthTip: 'दैनिक आरोग्य सूचना',
@@ -141,6 +147,7 @@ const DASHBOARD_COPY = {
     sleep: 'झोप',
     distance: 'अंतर',
     bpm: 'BPM',
+    calories: 'कॅलरीज',
     low: 'कमी',
     high: 'जास्त',
     normal: 'सामान्य',
@@ -550,9 +557,31 @@ const HEALTH_TIPS_BY_LANGUAGE = {
 }
 
 const APPOINTMENT_COLORS = ['#45A191', '#4F46E5', '#EF4444', '#F59E0B', '#8B5CF6']
+const APPOINTMENTS_STORAGE_KEY = 'appointments'
+const APPOINTMENT_RETENTION_MS = 24 * 60 * 60 * 1000
+
+function readStoredAppointments() {
+  const raw = localStorage.getItem(APPOINTMENTS_STORAGE_KEY)
+  if (!raw) return []
+
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function appointmentTimestamp(item) {
+  if (!item?.date || !item?.time) return NaN
+  return new Date(`${item.date}T${item.time}`).getTime()
+}
 
 function dateKey(date) {
-  return date.toISOString().split('T')[0]
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function startOfWeek(date) {
@@ -597,12 +626,14 @@ export default function DashboardPage() {
   const [sleepDuration, setSleepDuration] = useState(0)
   const [distance, setDistance] = useState(0)
   const [heartRate, setHeartRate] = useState(0)
+  const [calories, setCalories] = useState(0)
+  const [overallWellness, setOverallWellness] = useState('--')
 
   const [stepsGoal, setStepsGoal] = useState(parseNumber(localStorage.getItem('stepsGoal'), 10000))
   const [sleepGoal, setSleepGoal] = useState(parseNumber(localStorage.getItem('sleepGoal'), 8))
   const [distanceGoal, setDistanceGoal] = useState(parseNumber(localStorage.getItem('distanceGoal'), 5000))
 
-  const [appointments, setAppointments] = useState([])
+  const [appointments, setAppointments] = useState(() => readStoredAppointments())
   const [showAddModal, setShowAddModal] = useState(false)
   const [showTipsModal, setShowTipsModal] = useState(false)
   const [goalModal, setGoalModal] = useState({ type: null, value: '' })
@@ -641,18 +672,7 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    const raw = localStorage.getItem('appointments')
-    if (!raw) return
-    try {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) setAppointments(parsed)
-    } catch {
-      setAppointments([])
-    }
-  }, [])
-
-  useEffect(() => {
-    localStorage.setItem('appointments', JSON.stringify(appointments))
+    localStorage.setItem(APPOINTMENTS_STORAGE_KEY, JSON.stringify(appointments))
   }, [appointments])
 
   useEffect(() => {
@@ -671,8 +691,9 @@ export default function DashboardPage() {
       const now = Date.now()
       setAppointments((previous) =>
         previous.filter((item) => {
-          const dateTime = new Date(`${item.date}T${item.time}`).getTime()
-          return now < dateTime + 24 * 60 * 60 * 1000
+          const dateTime = appointmentTimestamp(item)
+          if (!Number.isFinite(dateTime)) return true
+          return now < dateTime + APPOINTMENT_RETENTION_MS
         }),
       )
     }, 60000)
@@ -711,12 +732,16 @@ export default function DashboardPage() {
         const nextSteps = parseNumber(data.steps, 0)
         const nextSleep = parseNumber(data?.sleep?.duration, 0)
         const nextHeartRate = parseNumber(data.heartRateAvg, 0)
-        const nextDistance = Math.round(nextSteps * 0.75)
+        const nextDistance = parseNumber(data.distanceMeters, Math.round(nextSteps * 0.75))
+        const nextCalories = parseNumber(data.caloriesBurned, 0)
+        const nextWellness = String(data.overallWellness || '--')
 
         setSteps(nextSteps)
         setSleepDuration(nextSleep)
         setHeartRate(nextHeartRate)
         setDistance(nextDistance)
+        setCalories(nextCalories)
+        setOverallWellness(nextWellness)
 
         const isToday = dateKey(date) === dateKey(new Date())
         if (isToday) {
@@ -728,6 +753,8 @@ export default function DashboardPage() {
         setSleepDuration(0)
         setHeartRate(0)
         setDistance(0)
+        setCalories(0)
+        setOverallWellness('--')
       }
     }
 
@@ -837,6 +864,7 @@ export default function DashboardPage() {
               <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${healthRemark.chip} ${healthRemark.color}`}>
                 {healthRemark.label}
               </span>
+              <p className="mt-3 text-xs font-semibold text-appMuted">{copy.overallWellness}: {overallWellness}</p>
               <p className="mt-3 inline-flex items-center gap-1 text-xs text-appMuted">
                 <Clock3 size={12} />
                 {copy.lastUpdated} {new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
@@ -892,6 +920,7 @@ export default function DashboardPage() {
               copy={copy}
             />
             <HeartCard heartRate={heartRate} copy={copy} />
+            <CaloriesCard calories={calories} copy={copy} />
           </section>
 
           <section className="mt-4 rounded-3xl bg-gradient-to-r from-[#16695D] to-[#0C5958] px-4 py-5 text-white shadow-soft">
@@ -926,12 +955,22 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-2">
                 {[...appointments]
-                  .sort((a, b) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime())
+                  .sort((a, b) => {
+                    const left = appointmentTimestamp(a)
+                    const right = appointmentTimestamp(b)
+                    const safeLeft = Number.isFinite(left) ? left : Number.MAX_SAFE_INTEGER
+                    const safeRight = Number.isFinite(right) ? right : Number.MAX_SAFE_INTEGER
+                    return safeLeft - safeRight
+                  })
                   .map((item) => {
-                    const appointmentDate = new Date(`${item.date}T${item.time}`)
-                    const isElapsed = Date.now() > appointmentDate.getTime()
-                    const day = appointmentDate.getDate()
-                    const month = appointmentDate.toLocaleDateString(locale, { month: 'short' })
+                    const dateTime = appointmentTimestamp(item)
+                    const hasDateTime = Number.isFinite(dateTime)
+                    const appointmentDate = hasDateTime ? new Date(dateTime) : new Date()
+                    const isElapsed = hasDateTime ? Date.now() > dateTime : false
+                    const day = hasDateTime ? appointmentDate.getDate() : '--'
+                    const month = hasDateTime
+                      ? appointmentDate.toLocaleDateString(locale, { month: 'short' })
+                      : '--'
 
                     return (
                       <div
@@ -954,7 +993,7 @@ export default function DashboardPage() {
                                 : 'text-slate-900 dark:text-white'
                             }`}
                           >
-                            {item.time} · {item.title}
+                            {item.time || '--:--'} · {item.title}
                           </p>
                           <p className="text-xs text-appMuted">{displayAppointmentSubtitle(item.subtitle, copy)}</p>
                         </div>
@@ -1252,6 +1291,34 @@ function HeartCard({ heartRate, copy }) {
 
       <p className="mt-3 text-[52px] font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white">{heartRate || 0}</p>
       <p className="text-sm text-appMuted">{copy.bpm}</p>
+    </div>
+  )
+}
+
+function CaloriesCard({ calories, copy }) {
+  return (
+    <div className="metric-card">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
+          <Flame size={16} />
+        </span>
+        <div className="rounded-md bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-600">kcal</div>
+      </div>
+
+      <div className="mt-3 h-16 w-full">
+        <svg width="100%" height="100%" viewBox="0 0 314 56" preserveAspectRatio="none">
+          <path
+            d="M0 48 C30 40, 60 45, 88 30 C112 18, 130 34, 150 24 C170 16, 192 28, 216 20 C236 15, 262 26, 286 21 C300 18, 307 21, 314 20"
+            fill="none"
+            stroke="#EA580C"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
+
+      <p className="mt-3 text-[52px] font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white">{Math.round(calories).toLocaleString()}</p>
+      <p className="text-sm text-appMuted">{copy.calories}</p>
     </div>
   )
 }

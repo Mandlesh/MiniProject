@@ -309,7 +309,7 @@ export const syncStravaActivities = async (req, res) => {
         { userId: user._id, date },
         {
           steps: d.steps,
-          distance: Number(d.distance.toFixed(2)),
+          distance: Math.round(d.distance * 1000),
           caloriesBurned: d.caloriesBurned,
           heartRateAvg:
             d.hrCount > 0 ? Math.round(d.hrSum / d.hrCount) : null,

@@ -6,6 +6,89 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+const CACHE_PREFIX = 'cache_'
+const CACHE_NAMESPACE_SEPARATOR = '__'
+const ACTIVE_CACHE_USER_KEY = 'cache_active_user_key'
+
+function normalizeCacheNamespace(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '_')
+}
+
+function resolveUserNamespace(userLike) {
+  if (!userLike) return ''
+
+  if (typeof userLike === 'string') {
+    return normalizeCacheNamespace(userLike)
+  }
+
+  const idLike = userLike.id || userLike._id || userLike.userId
+  if (idLike) {
+    return normalizeCacheNamespace(idLike)
+  }
+
+  if (userLike.email) {
+    return normalizeCacheNamespace(userLike.email)
+  }
+
+  return ''
+}
+
+function getActiveCacheNamespace() {
+  const stored = normalizeCacheNamespace(localStorage.getItem(ACTIVE_CACHE_USER_KEY))
+  return stored || 'anonymous'
+}
+
+function toStorageKey(key) {
+  const namespace = getActiveCacheNamespace()
+  return `${CACHE_PREFIX}${namespace}${CACHE_NAMESPACE_SEPARATOR}${key}`
+}
+
+export function setActiveCacheUser(userLike) {
+  const namespace = resolveUserNamespace(userLike)
+  if (namespace) {
+    localStorage.setItem(ACTIVE_CACHE_USER_KEY, namespace)
+  }
+  return namespace
+}
+
+export function clearLegacyGlobalCache() {
+  const keys = Object.keys(localStorage)
+  for (const storageKey of keys) {
+    if (!storageKey.startsWith(CACHE_PREFIX)) continue
+    if (storageKey === ACTIVE_CACHE_USER_KEY) continue
+
+    const logicalKey = storageKey.slice(CACHE_PREFIX.length)
+    if (!logicalKey.includes(CACHE_NAMESPACE_SEPARATOR)) {
+      localStorage.removeItem(storageKey)
+    }
+  }
+}
+
+export function clearActiveCacheUser() {
+  localStorage.removeItem(ACTIVE_CACHE_USER_KEY)
+}
+
+export function clearCurrentUserCache() {
+  const namespace = getActiveCacheNamespace()
+  const prefix = `${CACHE_PREFIX}${namespace}${CACHE_NAMESPACE_SEPARATOR}`
+  const keys = Object.keys(localStorage)
+
+  for (const storageKey of keys) {
+    if (storageKey.startsWith(prefix)) {
+      localStorage.removeItem(storageKey)
+    }
+  }
+}
+
+export function clearApiSessionCache() {
+  clearCurrentUserCache()
+  clearActiveCacheUser()
+  clearLegacyGlobalCache()
+}
+
 function getErrorMessage(error, fallback) {
   return (
     error?.response?.data?.message ||
@@ -16,18 +99,31 @@ function getErrorMessage(error, fallback) {
 }
 
 function cacheData(key, data) {
-  localStorage.setItem(`cache_${key}`, JSON.stringify(data))
-  localStorage.setItem(`cache_${key}_timestamp`, new Date().toISOString())
+  const dataKey = toStorageKey(key)
+  localStorage.setItem(dataKey, JSON.stringify(data))
+  localStorage.setItem(`${dataKey}_timestamp`, new Date().toISOString())
 }
 
 function getCachedData(key) {
-  const raw = localStorage.getItem(`cache_${key}`)
-  return raw ? JSON.parse(raw) : null
+  const storageKey = toStorageKey(key)
+  const raw = localStorage.getItem(storageKey)
+
+  if (!raw) return null
+
+  try {
+    return JSON.parse(raw)
+  } catch {
+    localStorage.removeItem(storageKey)
+    localStorage.removeItem(`${storageKey}_timestamp`)
+    return null
+  }
 }
 
 export async function registerUser(payload) {
   try {
     const response = await api.post('/auth/register', payload)
+    setActiveCacheUser(response.data?.user)
+    clearLegacyGlobalCache()
     return { success: true, data: response.data }
   } catch (error) {
     return { success: false, message: getErrorMessage(error, 'Registration failed') }
@@ -37,6 +133,8 @@ export async function registerUser(payload) {
 export async function loginUser(payload) {
   try {
     const response = await api.post('/auth/login', payload)
+    setActiveCacheUser(response.data?.user)
+    clearLegacyGlobalCache()
     return { success: true, data: response.data }
   } catch (error) {
     return { success: false, message: getErrorMessage(error, 'Login failed') }
@@ -48,6 +146,8 @@ export async function logoutUser() {
     await api.post('/auth/logout')
   } catch {
     // Ignore logout network failures and still clear local state
+  } finally {
+    clearApiSessionCache()
   }
 }
 
@@ -93,6 +193,7 @@ export async function getMonthlyAnalytics() {
 export async function getUserProfile() {
   try {
     const response = await api.get('/auth/profile')
+    setActiveCacheUser(response.data)
     cacheData('user_profile', response.data)
     return { success: true, data: response.data }
   } catch (error) {
@@ -105,7 +206,10 @@ export async function getUserProfile() {
 export async function updateUserProfile(payload) {
   try {
     const response = await api.put('/auth/profile', payload)
-    if (response.data?.user) cacheData('user_profile', response.data.user)
+    if (response.data?.user) {
+      setActiveCacheUser(response.data.user)
+      cacheData('user_profile', response.data.user)
+    }
     return { success: true, data: response.data }
   } catch (error) {
     return { success: false, message: getErrorMessage(error, 'Failed to update profile') }
@@ -114,9 +218,11 @@ export async function updateUserProfile(payload) {
 
 export async function getAISummary({ retryCount = 0, forceRefresh = false } = {}) {
   try {
+    const aiSummaryKey = toStorageKey('ai_summary')
+
     if (forceRefresh && retryCount === 0) {
-      localStorage.removeItem('cache_ai_summary')
-      localStorage.removeItem('cache_ai_summary_timestamp')
+      localStorage.removeItem(aiSummaryKey)
+      localStorage.removeItem(`${aiSummaryKey}_timestamp`)
     }
 
     const response = await api.get('/ai/summary', { timeout: 60000 })

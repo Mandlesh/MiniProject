@@ -101,7 +101,10 @@ const STRINGS = {
 }
 
 function dateKey(date) {
-  return date.toISOString().split('T')[0]
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function parseNumber(value, fallback = 0) {
@@ -114,7 +117,7 @@ function calculateRestingHeartRate(avgHR, sleepQuality, totalSteps) {
 
   let multiplier = 0.75
   if (sleepQuality === 'good') multiplier = 0.72
-  if (sleepQuality === 'bad') multiplier = 0.78
+  if (sleepQuality === 'poor') multiplier = 0.78
 
   if (totalSteps > 8000) multiplier -= 0.02
   if (totalSteps < 3000) multiplier += 0.02
@@ -151,6 +154,8 @@ export default function AnalyticsPage() {
   const [avgSleep, setAvgSleep] = useState(0)
   const [sleepQuality, setSleepQuality] = useState('good')
   const [distance, setDistance] = useState(0)
+  const [overallWellness, setOverallWellness] = useState('Good')
+  const [serverWellnessScore, setServerWellnessScore] = useState(0)
   const [dailyData, setDailyData] = useState([])
 
   const [hydrationDate, setHydrationDate] = useState(dateKey(new Date()))
@@ -210,7 +215,9 @@ export default function AnalyticsPage() {
         const nextSleep = parseNumber(data?.sleep?.duration, 0)
         const nextHeartRate = parseNumber(data.heartRateAvg, 0)
         const nextCalories = parseNumber(data.caloriesBurned, 0)
-        const nextDistance = Math.round(nextSteps * 0.75)
+        const nextDistance = parseNumber(data.distanceMeters, Math.round(nextSteps * 0.75))
+        const nextScore = parseNumber(data.healthScore, 0)
+        const nextWellness = String(data.overallWellness || 'Good')
         const quality = data?.sleep?.quality || 'good'
 
         setIsOffline(result.cached === true)
@@ -221,12 +228,15 @@ export default function AnalyticsPage() {
         setAvgSleep(nextSleep)
         setSleepQuality(quality)
         setDistance(nextDistance)
+        setServerWellnessScore(nextScore)
+        setOverallWellness(nextWellness)
         setDailyData([
           {
             date: dateKey(new Date()),
             steps: nextSteps,
             heartRateAvg: nextHeartRate,
             sleep: { duration: nextSleep, quality },
+            distanceMeters: nextDistance,
             caloriesBurned: nextCalories,
           },
         ])
@@ -239,6 +249,8 @@ export default function AnalyticsPage() {
         setAvgSleep(0)
         setSleepQuality('good')
         setDistance(0)
+        setServerWellnessScore(0)
+        setOverallWellness('Needs attention')
         setDailyData([])
       }
     } else {
@@ -248,13 +260,15 @@ export default function AnalyticsPage() {
       if (response.success && response.data) {
         const summary = response.data.summary || {}
         const daily = Array.isArray(response.data.dailyData) ? response.data.dailyData : []
-        const totalDistance = daily.reduce(
-          (sum, item) => sum + Math.round(parseNumber(item.steps, 0) * 0.75),
-          0,
+        const totalDistance = parseNumber(
+          summary.totalDistanceMeters,
+          daily.reduce((sum, item) => sum + parseNumber(item.distanceMeters, Math.round(parseNumber(item.steps, 0) * 0.75)), 0),
         )
         const quality = daily.length > 0 ? daily[daily.length - 1]?.sleep?.quality || 'good' : 'good'
         const heart = parseNumber(summary.avgHeartRate, 0)
         const steps = parseNumber(summary.totalSteps, 0)
+        const score = parseNumber(summary.avgHealthScore, 0)
+        const wellness = String(summary.overallWellness || 'Good')
 
         setIsOffline(response.cached === true)
         setTotalSteps(steps)
@@ -264,6 +278,8 @@ export default function AnalyticsPage() {
         setAvgSleep(parseNumber(summary.avgSleep, 0))
         setSleepQuality(quality)
         setDistance(totalDistance)
+        setServerWellnessScore(score)
+        setOverallWellness(wellness)
         setDailyData(daily)
       } else {
         setIsOffline(false)
@@ -274,6 +290,8 @@ export default function AnalyticsPage() {
         setAvgSleep(0)
         setSleepQuality('good')
         setDistance(0)
+        setServerWellnessScore(0)
+        setOverallWellness('Needs attention')
         setDailyData([])
       }
     }
@@ -282,6 +300,10 @@ export default function AnalyticsPage() {
   }
 
   const wellnessScore = useMemo(() => {
+    if (serverWellnessScore > 0) {
+      return Math.max(0, Math.min(100, Math.round(serverWellnessScore)))
+    }
+
     if (selectedTimeframe === 'Today') {
       const score =
         (totalSteps / Math.max(stepsGoal, 1)) * 40 +
@@ -300,7 +322,17 @@ export default function AnalyticsPage() {
     }
 
     return Math.round(stepsScore * 0.35 + sleepScore * 0.35 + hrScore * 0.3)
-  }, [selectedTimeframe, totalSteps, avgSleep, avgHeartRate, stepsGoal, sleepGoal, distance, distanceGoal])
+  }, [
+    selectedTimeframe,
+    totalSteps,
+    avgSleep,
+    avgHeartRate,
+    stepsGoal,
+    sleepGoal,
+    distance,
+    distanceGoal,
+    serverWellnessScore,
+  ])
 
   const activityBars = useMemo(() => {
     const raw = buildWeekDayData(dailyData, (item) => parseNumber(item.steps, 0))
@@ -399,6 +431,7 @@ export default function AnalyticsPage() {
 
               <div className="min-w-0">
                 <p className="text-lg font-bold text-slate-900 dark:text-white">{text.overallWellness}</p>
+                <p className="mt-1 text-sm font-semibold text-brand">{overallWellness}</p>
                 <p className="mt-2 text-sm leading-6 text-appMuted">{text.wellnessDesc}</p>
               </div>
             </div>

@@ -50,3 +50,12 @@ export async function resetGamification() {
     return { success: false, message: getErrorMessage(error, 'Reset failed') }
   }
 }
+
+export async function markProgressShared() {
+  try {
+    const response = await api.post('/gamification/share')
+    return { success: true, data: response.data }
+  } catch (error) {
+    return { success: false, message: getErrorMessage(error, 'Share sync failed') }
+  }
+}

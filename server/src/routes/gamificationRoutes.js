@@ -3,7 +3,8 @@ import {
   getGamificationProfile,
   syncGamification,
   resetGamification,
-  getTodayLeaderboard
+  getTodayLeaderboard,
+  markProgressShared
 } from "../controllers/gamificationController.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 
@@ -21,7 +22,10 @@ router.post("/sync", syncGamification);
 // 3️⃣ Reset (dev only)
 router.post("/reset", resetGamification);
 
-router.get("/leaderboard/today", authMiddleware, getTodayLeaderboard);
+// 4️⃣ Track share action and unlock social badge
+router.post("/share", markProgressShared);
+
+router.get("/leaderboard/today", getTodayLeaderboard);
 
 
 export default router;

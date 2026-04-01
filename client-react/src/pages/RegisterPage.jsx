@@ -124,8 +124,8 @@ export default function RegisterPage() {
       return
     }
 
-    const userName = result.data?.user?.name || form.name || 'User'
-    login(userName)
+    const user = result.data?.user || { name: form.name || 'User', email: form.email }
+    login(user)
     navigate('/dashboard', { replace: true })
   }
 

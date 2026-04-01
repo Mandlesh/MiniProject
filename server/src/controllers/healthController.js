@@ -1,4 +1,21 @@
 import DailyHealthLog from "../models/DailyHealthLog.js";
+import {
+  ensureWearableLogs,
+  hasWatchDataAccess,
+  toComputedHealthLog,
+  toDateKey
+} from "../services/wearableDataService.js";
+
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
+function normalizeDateInput(dateValue) {
+  const key = toDateKey(dateValue);
+  if (!key) return null;
+
+  const parsed = new Date(`${key}T00:00:00`);
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+}
 
 /**
  * 1️⃣ CREATE or UPDATE daily health log
@@ -7,30 +24,54 @@ import DailyHealthLog from "../models/DailyHealthLog.js";
 export const syncDailyHealth = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { date, ...healthData } = req.body;
+    const canUseWatchData = await hasWatchDataAccess(userId);
+    if (!canUseWatchData) {
+      return res.status(403).json({
+        message: "Watch data is only enabled for the owner profile"
+      });
+    }
 
-    if (!date) {
+    const { date, ...healthData } = req.body;
+    const normalizedDateKey = toDateKey(date);
+
+    if (!normalizedDateKey) {
       return res.status(400).json({ message: "Date is required" });
     }
 
+    const payload = {
+      ...healthData,
+      userId,
+      date: normalizedDateKey
+    };
+
+    if (
+      (payload.distance === undefined || payload.distance === null) &&
+      Number.isFinite(Number(payload.steps))
+    ) {
+      payload.distance = Math.round(Number(payload.steps) * 0.75);
+    }
+
+    if (payload?.sleep?.quality === "bad") {
+      payload.sleep.quality = "poor";
+    }
+
     const log = await DailyHealthLog.findOneAndUpdate(
-      { userId, date },
+      { userId, date: normalizedDateKey },
       {
         $set: {
-          ...healthData,
-          userId,
-          date
+          ...payload
         }
       },
       {
         new: true,
-        upsert: true
+        upsert: true,
+        setDefaultsOnInsert: true
       }
     );
 
     res.status(200).json({
       message: "Daily health synced successfully",
-      data: log
+      data: toComputedHealthLog(log.toObject())
     });
   } catch (error) {
     console.error(error.message);
@@ -45,15 +86,42 @@ export const syncDailyHealth = async (req, res) => {
 export const getHealthByDate = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { date } = req.params;
+    const canUseWatchData = await hasWatchDataAccess(userId);
+    if (!canUseWatchData) {
+      return res.status(404).json({ message: "No watch data found for this profile" });
+    }
 
-    const log = await DailyHealthLog.findOne({ userId, date });
+    const { date } = req.params;
+    const requestedDate = normalizeDateInput(date);
+
+    if (!requestedDate) {
+      return res.status(400).json({ message: "Invalid date format" });
+    }
+
+    const today = normalizeDateInput(new Date());
+    if (requestedDate > today) {
+      return res.status(404).json({ message: "No health data found" });
+    }
+
+    const daysToEnsure =
+      Math.floor((today.getTime() - requestedDate.getTime()) / MS_IN_DAY) + 1;
+
+    await ensureWearableLogs({
+      userId,
+      days: Math.max(30, daysToEnsure),
+      uptoDate: today
+    });
+
+    const log = await DailyHealthLog.findOne({
+      userId,
+      date: toDateKey(requestedDate)
+    }).lean();
 
     if (!log) {
       return res.status(404).json({ message: "No health data found" });
     }
 
-    res.status(200).json(log);
+    res.status(200).json(toComputedHealthLog(log));
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -66,18 +134,55 @@ export const getHealthByDate = async (req, res) => {
 export const getHealthByRange = async (req, res) => {
   try {
     const userId = req.user.id;
+    const canUseWatchData = await hasWatchDataAccess(userId);
+    if (!canUseWatchData) {
+      return res.status(200).json([]);
+    }
+
     const { start, end } = req.query;
 
     if (!start || !end) {
       return res.status(400).json({ message: "Start and end dates required" });
     }
 
+    const startDate = normalizeDateInput(start);
+    const endDate = normalizeDateInput(end);
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: "Invalid date format" });
+    }
+
+    if (endDate < startDate) {
+      return res
+        .status(400)
+        .json({ message: "End date must be after start date" });
+    }
+
+    const today = normalizeDateInput(new Date());
+    const boundedEnd = endDate > today ? today : endDate;
+
+    const daysToEnsure =
+      Math.floor((boundedEnd.getTime() - startDate.getTime()) / MS_IN_DAY) + 1;
+
+    if (daysToEnsure > 0) {
+      await ensureWearableLogs({
+        userId,
+        days: Math.max(daysToEnsure, 30),
+        uptoDate: boundedEnd
+      });
+    }
+
     const logs = await DailyHealthLog.find({
       userId,
-      date: { $gte: start, $lte: end }
-    }).sort({ date: 1 });
+      date: {
+        $gte: toDateKey(startDate),
+        $lte: toDateKey(boundedEnd)
+      }
+    })
+      .sort({ date: 1 })
+      .lean();
 
-    res.status(200).json(logs);
+    res.status(200).json(logs.map((log) => toComputedHealthLog(log)));
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }

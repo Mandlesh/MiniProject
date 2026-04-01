@@ -71,8 +71,8 @@ export default function LoginPage() {
       return
     }
 
-    const name = result.data?.user?.name || 'User'
-    login(name)
+    const user = result.data?.user || null
+    login(user || 'User')
     navigate('/dashboard', { replace: true })
   }
 

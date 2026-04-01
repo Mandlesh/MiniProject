@@ -5,6 +5,7 @@ import {
   Bot,
   Brain,
   CheckCircle2,
+  Flame,
   Footprints,
   HeartPulse,
   Minus,
@@ -32,6 +33,10 @@ const STRINGS = {
     stop: 'Stop',
     sleep: 'Sleep',
     steps: 'Steps',
+    heartRate: 'Avg Heart Rate',
+    calories: 'Calories',
+    healthScore: 'Health Score',
+    wellness: 'Wellness',
     status: 'Status',
     trend: 'Trend',
     noSummary: 'No health summary available yet.',
@@ -57,6 +62,10 @@ const STRINGS = {
     stop: 'रोकें',
     sleep: 'नींद',
     steps: 'कदम',
+    heartRate: 'औसत हृदय गति',
+    calories: 'कैलोरी',
+    healthScore: 'स्वास्थ्य स्कोर',
+    wellness: 'कल्याण',
     status: 'स्थिति',
     trend: 'रुझान',
     noSummary: 'अभी तक कोई स्वास्थ्य सारांश उपलब्ध नहीं है।',
@@ -82,6 +91,10 @@ const STRINGS = {
     stop: 'थांबा',
     sleep: 'झोप',
     steps: 'पावले',
+    heartRate: 'सरासरी हृदय गती',
+    calories: 'कॅलरीज',
+    healthScore: 'आरोग्य स्कोअर',
+    wellness: 'आरोग्य स्थिती',
     status: 'स्थिती',
     trend: 'ट्रेंड',
     noSummary: 'अद्याप कोणताही आरोग्य सारांश उपलब्ध नाही.',
@@ -255,23 +268,151 @@ function getTrendInsightDetails(trend) {
   }
 }
 
-function getRecommendationIcon(title) {
+function getHeartRateInsightDetails(avgHeartRate) {
+  if (avgHeartRate >= 60 && avgHeartRate <= 85) {
+    return {
+      trend: 'Healthy',
+      trendClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30',
+      description:
+        'Your average heart rate is in a healthy range. Keep up your balanced routine.',
+    }
+  }
+
+  if (avgHeartRate > 0 && avgHeartRate <= 100) {
+    return {
+      trend: 'Monitor',
+      trendClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30',
+      description:
+        'Your average heart rate is slightly elevated. Improve hydration and include recovery time.',
+    }
+  }
+
+  return {
+    trend: 'Attention',
+    trendClass: 'bg-red-100 text-red-600 dark:bg-red-900/30',
+    description:
+      'Your heart rate trend needs attention. Consider reducing intensity and consulting a professional if needed.',
+  }
+}
+
+function getCaloriesInsightDetails(calories) {
+  if (calories >= 550) {
+    return {
+      trend: 'Active',
+      trendClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30',
+      description:
+        'Great calorie burn this week. Your activity level supports weight and cardiovascular goals.',
+    }
+  }
+
+  if (calories >= 350) {
+    return {
+      trend: 'Moderate',
+      trendClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30',
+      description:
+        'You are moderately active. Add one extra walk or workout session for a stronger weekly burn.',
+    }
+  }
+
+  return {
+    trend: 'Low',
+    trendClass: 'bg-red-100 text-red-600 dark:bg-red-900/30',
+    description:
+      'Your calorie burn is low this week. Increase movement with short but frequent activity blocks.',
+  }
+}
+
+function getHealthScoreInsightDetails(score) {
+  if (score >= 85) {
+    return {
+      trend: 'Excellent',
+      trendClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30',
+      description:
+        'Your health score is excellent. Maintain consistency in sleep, activity, and recovery.',
+    }
+  }
+
+  if (score >= 70) {
+    return {
+      trend: 'Good',
+      trendClass: 'bg-brand/15 text-brand',
+      description:
+        'Your health score is good. A small increase in daily movement can move you to the next tier.',
+    }
+  }
+
+  if (score >= 50) {
+    return {
+      trend: 'Fair',
+      trendClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30',
+      description:
+        'Your health score is fair. Focus on sleep regularity and hitting your daily step target.',
+    }
+  }
+
+  return {
+    trend: 'Needs Attention',
+    trendClass: 'bg-red-100 text-red-600 dark:bg-red-900/30',
+    description:
+      'Your health score indicates a recovery gap. Prioritize rest, hydration, and low-intensity movement.',
+  }
+}
+
+function getWellnessInsightDetails(wellness) {
+  const normalized = String(wellness || '').toLowerCase()
+
+  if (normalized.includes('excellent')) {
+    return {
+      trend: 'Excellent',
+      trendClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30',
+      description:
+        'Your overall wellness is excellent and stable. Continue your current healthy rhythm.',
+    }
+  }
+
+  if (normalized.includes('good')) {
+    return {
+      trend: 'Good',
+      trendClass: 'bg-brand/15 text-brand',
+      description:
+        'Your overall wellness is good. A little more consistency can unlock excellent status.',
+    }
+  }
+
+  if (normalized.includes('fair')) {
+    return {
+      trend: 'Fair',
+      trendClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30',
+      description:
+        'Your wellness is fair. Improve sleep timing and add daily walking for better balance.',
+    }
+  }
+
+  return {
+    trend: 'Needs Attention',
+    trendClass: 'bg-red-100 text-red-600 dark:bg-red-900/30',
+    description:
+      'Your wellness needs attention this week. Focus on recovery, hydration, and gradual activity.',
+  }
+}
+
+function RecommendationIcon({ title }) {
   const normalized = String(title || '').toLowerCase()
 
   if (normalized.includes('walk') || normalized.includes('cardio') || normalized.includes('run')) {
-    return Footprints
+    return <Footprints size={20} />
   }
   if (normalized.includes('mindful') || normalized.includes('meditat') || normalized.includes('breath')) {
-    return Brain
+    return <Brain size={20} />
   }
   if (normalized.includes('sleep') || normalized.includes('rest')) {
-    return BedDouble
+    return <BedDouble size={20} />
   }
   if (normalized.includes('heart') || normalized.includes('pulse')) {
-    return HeartPulse
+    return <HeartPulse size={20} />
   }
 
-  return Sparkles
+  return <Sparkles size={20} />
 }
 
 function recommendationTone(index) {
@@ -292,16 +433,29 @@ function defaultRecommendations(text) {
   ]
 }
 
-function buildSpeechText(language, summaryText, sleepAdvice, steps, sleepChange, status, trend, text) {
+function buildSpeechText(
+  language,
+  summaryText,
+  sleepAdvice,
+  steps,
+  sleepChange,
+  status,
+  trend,
+  avgHeartRate,
+  caloriesBurned,
+  healthScore,
+  overallWellness,
+  text,
+) {
   if (language === 'Hindi') {
-    return `आपका साप्ताहिक स्वास्थ्य सारांश। ${text.steps} ${steps}. ${text.sleep} ${sleepChange}. ${text.status} ${status}. ${text.trend} ${trend}. ${sleepAdvice}`
+    return `आपका साप्ताहिक स्वास्थ्य सारांश। ${text.steps} ${steps}. ${text.sleep} ${sleepChange}. ${text.heartRate} ${avgHeartRate} बीपीएम. ${text.calories} ${caloriesBurned}. ${text.healthScore} ${healthScore}. ${text.wellness} ${overallWellness}. ${text.status} ${status}. ${text.trend} ${trend}. ${sleepAdvice}`
   }
 
   if (language === 'Marathi') {
-    return `तुमचा साप्ताहिक आरोग्य सारांश. ${text.steps} ${steps}. ${text.sleep} ${sleepChange}. ${text.status} ${status}. ${text.trend} ${trend}. ${sleepAdvice}`
+    return `तुमचा साप्ताहिक आरोग्य सारांश. ${text.steps} ${steps}. ${text.sleep} ${sleepChange}. ${text.heartRate} ${avgHeartRate} BPM. ${text.calories} ${caloriesBurned}. ${text.healthScore} ${healthScore}. ${text.wellness} ${overallWellness}. ${text.status} ${status}. ${text.trend} ${trend}. ${sleepAdvice}`
   }
 
-  return `${summaryText}. ${sleepAdvice}`
+  return `${summaryText}. ${text.steps} ${steps}. ${text.sleep} ${sleepChange}. ${text.heartRate} ${avgHeartRate} bpm. ${text.calories} ${caloriesBurned}. ${text.healthScore} ${healthScore}. ${text.wellness} ${overallWellness}. ${sleepAdvice}`
 }
 
 export default function AISummaryPage() {
@@ -319,6 +473,10 @@ export default function AISummaryPage() {
   const [updatedAt, setUpdatedAt] = useState('UPDATED JUST NOW')
   const [sleepChange, setSleepChange] = useState('+0hrs')
   const [steps, setSteps] = useState(0)
+  const [avgHeartRate, setAvgHeartRate] = useState(0)
+  const [caloriesBurned, setCaloriesBurned] = useState(0)
+  const [healthScore, setHealthScore] = useState(0)
+  const [overallWellness, setOverallWellness] = useState('Good')
   const [status, setStatus] = useState('Recovered')
   const [trend, setTrend] = useState('Positive')
   const [recommendations, setRecommendations] = useState([])
@@ -375,6 +533,10 @@ export default function AISummaryPage() {
 
     setSleepChange(String(insights.sleepChange || deriveSleepChange(avgSleep)))
     setSteps(Number(insights.steps || 0))
+    setAvgHeartRate(Number(insights.avgHeartRate || 0))
+    setCaloriesBurned(Number(insights.caloriesBurned || 0))
+    setHealthScore(Number(insights.healthScore || 0))
+    setOverallWellness(String(insights.overallWellness || 'Good'))
     setStatus(insights.status || 'Recovered')
     setTrend(insights.trend || 'Positive')
     setRecommendations(
@@ -405,6 +567,10 @@ export default function AISummaryPage() {
       sleepChange,
       status,
       trend,
+      avgHeartRate,
+      caloriesBurned,
+      healthScore,
+      overallWellness,
       text,
     )
 
@@ -449,6 +615,38 @@ export default function AISummaryPage() {
         bgClass: 'bg-orange-100 dark:bg-orange-900/30',
       },
       {
+        key: 'heartRate',
+        label: text.heartRate,
+        value: `${avgHeartRate} bpm`,
+        icon: HeartPulse,
+        iconClass: 'text-rose-600',
+        bgClass: 'bg-rose-100 dark:bg-rose-900/30',
+      },
+      {
+        key: 'calories',
+        label: text.calories,
+        value: `${Math.round(caloriesBurned).toLocaleString()} kcal`,
+        icon: Flame,
+        iconClass: 'text-orange-600',
+        bgClass: 'bg-orange-100 dark:bg-orange-900/30',
+      },
+      {
+        key: 'healthScore',
+        label: text.healthScore,
+        value: `${Math.round(healthScore)}/100`,
+        icon: Sparkles,
+        iconClass: 'text-violet-600',
+        bgClass: 'bg-violet-100 dark:bg-violet-900/30',
+      },
+      {
+        key: 'wellness',
+        label: text.wellness,
+        value: overallWellness,
+        icon: CheckCircle2,
+        iconClass: 'text-emerald-600',
+        bgClass: 'bg-emerald-100 dark:bg-emerald-900/30',
+      },
+      {
         key: 'status',
         label: text.status,
         value: status,
@@ -465,12 +663,27 @@ export default function AISummaryPage() {
         bgClass: trendMeta.bgClass,
       },
     ],
-    [text, sleepChange, steps, status, trend, trendMeta],
+    [
+      text,
+      sleepChange,
+      steps,
+      avgHeartRate,
+      caloriesBurned,
+      healthScore,
+      overallWellness,
+      status,
+      trend,
+      trendMeta,
+    ],
   )
 
   const detailedInsights = useMemo(() => {
     const sleepDetails = getSleepInsightDetails(sleepChange)
     const stepsDetails = getStepsInsightDetails(steps)
+    const heartRateDetails = getHeartRateInsightDetails(avgHeartRate)
+    const caloriesDetails = getCaloriesInsightDetails(caloriesBurned)
+    const healthScoreDetails = getHealthScoreInsightDetails(healthScore)
+    const wellnessDetails = getWellnessInsightDetails(overallWellness)
     const statusDetails = getStatusInsightDetails(status)
     const trendDetails = getTrendInsightDetails(trend)
 
@@ -498,6 +711,50 @@ export default function AISummaryPage() {
         description: stepsDetails.description,
       },
       {
+        key: 'heartRate',
+        label: text.heartRate,
+        value: `${avgHeartRate} bpm`,
+        icon: HeartPulse,
+        iconClass: 'text-rose-600',
+        bgClass: 'bg-rose-100 dark:bg-rose-900/30',
+        trend: heartRateDetails.trend,
+        trendClass: heartRateDetails.trendClass,
+        description: heartRateDetails.description,
+      },
+      {
+        key: 'calories',
+        label: text.calories,
+        value: `${Math.round(caloriesBurned).toLocaleString()} kcal`,
+        icon: Flame,
+        iconClass: 'text-orange-600',
+        bgClass: 'bg-orange-100 dark:bg-orange-900/30',
+        trend: caloriesDetails.trend,
+        trendClass: caloriesDetails.trendClass,
+        description: caloriesDetails.description,
+      },
+      {
+        key: 'healthScore',
+        label: text.healthScore,
+        value: `${Math.round(healthScore)}/100`,
+        icon: Sparkles,
+        iconClass: 'text-violet-600',
+        bgClass: 'bg-violet-100 dark:bg-violet-900/30',
+        trend: healthScoreDetails.trend,
+        trendClass: healthScoreDetails.trendClass,
+        description: healthScoreDetails.description,
+      },
+      {
+        key: 'wellness',
+        label: text.wellness,
+        value: overallWellness,
+        icon: CheckCircle2,
+        iconClass: 'text-emerald-600',
+        bgClass: 'bg-emerald-100 dark:bg-emerald-900/30',
+        trend: wellnessDetails.trend,
+        trendClass: wellnessDetails.trendClass,
+        description: wellnessDetails.description,
+      },
+      {
         key: 'status',
         label: text.status,
         value: status,
@@ -520,7 +777,18 @@ export default function AISummaryPage() {
         description: trendDetails.description,
       },
     ]
-  }, [text, sleepChange, steps, status, trend, trendMeta])
+  }, [
+    text,
+    sleepChange,
+    steps,
+    avgHeartRate,
+    caloriesBurned,
+    healthScore,
+    overallWellness,
+    status,
+    trend,
+    trendMeta,
+  ])
 
   const recommendationItems = recommendations.length
     ? recommendations
@@ -668,12 +936,10 @@ function InsightChip({ insight }) {
 }
 
 function RecommendationCard({ item, index }) {
-  const Icon = getRecommendationIcon(item.title)
-
   return (
     <div className="card flex items-center gap-4 p-4">
       <span className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl ${recommendationTone(index)}`}>
-        <Icon size={20} />
+        <RecommendationIcon title={item.title} />
       </span>
 
       <div className="min-w-0 flex-1">
